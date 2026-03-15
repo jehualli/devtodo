@@ -1,0 +1,23 @@
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new translations manually or run "mix gettext.extract" to bring this
+## file up to date. Translations in this file will be used if a matching
+## translation is not found in a more specific locale file (e.g. "fr").
+msgid ""
+msgstr ""
+
+msgid "can't be blank"
+msgstr ""
+
+msgid "has already been taken"
+msgstr ""
+
+msgid "is invalid"
+msgstr ""
+
+msgid "should be at least %{count} character(s)"
+msgstr ""
+
+msgid "should be at most %{count} character(s)"
+msgstr ""

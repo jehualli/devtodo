@@ -1,0 +1,396 @@
+<div
+  id="devtodo-app"
+  class="flex h-screen overflow-hidden"
+  phx-hook="KeyboardShortcuts"
+>
+  <%!-- SIDEBAR --%>
+  <aside class="w-64 flex-shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col overflow-y-auto">
+    <div class="p-4 border-b border-gray-800">
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-sm font-bold">D</div>
+        <span class="font-semibold text-gray-100 text-lg">DevTodo</span>
+      </div>
+      <p class="text-xs text-gray-500 mt-1">Your dev task tracker</p>
+    </div>
+
+    <%!-- Quick add --%>
+    <div class="p-3 border-b border-gray-800">
+      <.link
+        patch={~p"/tasks/new"}
+        class="flex items-center gap-2 w-full rounded-lg bg-indigo-600 hover:bg-indigo-500 px-3 py-2 text-sm font-medium transition-colors"
+      >
+        <.icon name="hero-plus" class="h-4 w-4" />
+        New Task
+        <kbd class="ml-auto text-xs opacity-60 font-mono bg-indigo-700 px-1 rounded">N</kbd>
+      </.link>
+    </div>
+
+    <%!-- Status filters --%>
+    <div class="p-3">
+      <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Status</p>
+      <nav class="space-y-0.5">
+        <button
+          phx-click="filter_status"
+          phx-value-status="all"
+          class={[
+            "flex items-center justify-between w-full rounded-lg px-3 py-1.5 text-sm transition-colors",
+            @filters.status == :all && "bg-indigo-600/20 text-indigo-300" || "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
+          ]}
+        >
+          <span class="flex items-center gap-2">
+            <.icon name="hero-squares-2x2" class="h-4 w-4" />
+            All Tasks
+          </span>
+          <span class="text-xs text-gray-500">{Enum.sum(Map.values(@counts))}</span>
+        </button>
+        <button
+          phx-click="filter_status"
+          phx-value-status="todo"
+          class={[
+            "flex items-center justify-between w-full rounded-lg px-3 py-1.5 text-sm transition-colors",
+            @filters.status == :todo && "bg-indigo-600/20 text-indigo-300" || "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
+          ]}
+        >
+          <span class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-gray-500"></span>
+            Todo
+          </span>
+          <span class="text-xs text-gray-500">{Map.get(@counts, :todo, 0)}</span>
+        </button>
+        <button
+          phx-click="filter_status"
+          phx-value-status="in_progress"
+          class={[
+            "flex items-center justify-between w-full rounded-lg px-3 py-1.5 text-sm transition-colors",
+            @filters.status == :in_progress && "bg-indigo-600/20 text-indigo-300" || "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
+          ]}
+        >
+          <span class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+            In Progress
+          </span>
+          <span class="text-xs text-gray-500">{Map.get(@counts, :in_progress, 0)}</span>
+        </button>
+        <button
+          phx-click="filter_status"
+          phx-value-status="blocked"
+          class={[
+            "flex items-center justify-between w-full rounded-lg px-3 py-1.5 text-sm transition-colors",
+            @filters.status == :blocked && "bg-indigo-600/20 text-indigo-300" || "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
+          ]}
+        >
+          <span class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-red-500"></span>
+            Blocked
+          </span>
+          <span class="text-xs text-gray-500">{Map.get(@counts, :blocked, 0)}</span>
+        </button>
+        <button
+          phx-click="filter_status"
+          phx-value-status="done"
+          class={[
+            "flex items-center justify-between w-full rounded-lg px-3 py-1.5 text-sm transition-colors",
+            @filters.status == :done && "bg-indigo-600/20 text-indigo-300" || "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
+          ]}
+        >
+          <span class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-green-500"></span>
+            Done
+          </span>
+          <span class="text-xs text-gray-500">{Map.get(@counts, :done, 0)}</span>
+        </button>
+      </nav>
+    </div>
+
+    <%!-- Priority filters --%>
+    <div class="p-3 border-t border-gray-800">
+      <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Priority</p>
+      <nav class="space-y-0.5">
+        <%= for {priority, label} <- [{:all, "All"}, {:urgent, "Urgent"}, {:high, "High"}, {:medium, "Medium"}, {:low, "Low"}] do %>
+          <button
+            phx-click="filter_priority"
+            phx-value-priority={priority}
+            class={[
+              "flex items-center gap-2 w-full rounded-lg px-3 py-1.5 text-sm transition-colors",
+              @filters.priority == priority && "bg-indigo-600/20 text-indigo-300" || "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
+            ]}
+          >
+            <span class={["w-2 h-2 rounded-full", priority != :all && priority_dot(priority) || "bg-gray-600"]}></span>
+            {label}
+          </button>
+        <% end %>
+      </nav>
+    </div>
+
+    <%!-- Projects --%>
+    <div :if={@projects != []} class="p-3 border-t border-gray-800">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Projects</p>
+        <.link navigate={~p"/projects/new"} class="text-gray-600 hover:text-gray-400">
+          <.icon name="hero-plus" class="h-3.5 w-3.5" />
+        </.link>
+      </div>
+      <nav class="space-y-0.5">
+        <button
+          phx-click="filter_project"
+          phx-value-project_id="all"
+          class={[
+            "flex items-center gap-2 w-full rounded-lg px-3 py-1.5 text-sm transition-colors",
+            @filters.project_id == :all && "bg-indigo-600/20 text-indigo-300" || "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
+          ]}
+        >
+          All Projects
+        </button>
+        <%= for project <- @projects do %>
+          <button
+            phx-click="filter_project"
+            phx-value-project_id={project.id}
+            class={[
+              "flex items-center gap-2 w-full rounded-lg px-3 py-1.5 text-sm transition-colors truncate",
+              @filters.project_id == project.id && "bg-indigo-600/20 text-indigo-300" || "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
+            ]}
+          >
+            <span class="w-2 h-2 rounded-full flex-shrink-0" style={"background-color: #{project.color}"}></span>
+            <span class="truncate">{project.name}</span>
+          </button>
+        <% end %>
+      </nav>
+    </div>
+
+    <%!-- Tags --%>
+    <div :if={@tags != []} class="p-3 border-t border-gray-800">
+      <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Tags</p>
+      <div class="flex flex-wrap gap-1">
+        <%= for tag <- @tags do %>
+          <button
+            phx-click="filter_tag"
+            phx-value-tag={tag}
+            class={[
+              "rounded-md px-2 py-0.5 text-xs transition-colors",
+              @filters.tag == tag && "bg-indigo-600 text-white" || "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200"
+            ]}
+          >
+            #{tag}
+          </button>
+        <% end %>
+      </div>
+    </div>
+
+    <%!-- Keyboard shortcuts help --%>
+    <div class="mt-auto p-3 border-t border-gray-800">
+      <div class="text-xs text-gray-600 space-y-1">
+        <p class="font-semibold text-gray-500 mb-1.5">Shortcuts</p>
+        <div class="flex justify-between"><kbd class="font-mono bg-gray-800 px-1 rounded">N</kbd><span>New task</span></div>
+        <div class="flex justify-between"><kbd class="font-mono bg-gray-800 px-1 rounded">/</kbd><span>Search</span></div>
+        <div class="flex justify-between"><kbd class="font-mono bg-gray-800 px-1 rounded">Esc</kbd><span>Clear filters</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <%!-- MAIN CONTENT --%>
+  <main class="flex-1 flex flex-col overflow-hidden">
+    <%!-- Top bar --%>
+    <header class="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center gap-4 flex-shrink-0">
+      <div class="flex-1 relative">
+        <.icon name="hero-magnifying-glass" class="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+        <input
+          id="search-input"
+          type="text"
+          placeholder="Search tasks... (/)"
+          value={@filters.search}
+          phx-change="search"
+          phx-debounce="200"
+          name="search"
+          class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-9 pr-4 py-2 text-sm text-gray-100
+                 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+        />
+      </div>
+      <.link navigate={~p"/projects"} class="text-sm text-gray-400 hover:text-gray-200 transition-colors flex items-center gap-1.5">
+        <.icon name="hero-folder" class="h-4 w-4" />
+        Projects
+      </.link>
+      <button
+        :if={@filters != %{status: :all, priority: :all, project_id: :all, tag: nil, search: ""}}
+        phx-click="clear_filters"
+        class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+      >
+        Clear filters
+      </button>
+    </header>
+
+    <%!-- Task list --%>
+    <div class="flex-1 overflow-y-auto px-6 py-4">
+      <div class="mb-4 flex items-center justify-between">
+        <h2 class="text-sm font-medium text-gray-400">
+          {length(@tasks)} {if length(@tasks) == 1, do: "task", else: "tasks"}
+          <span :if={@filters.status != :all} class="ml-1">
+            · {status_label(@filters.status)}
+          </span>
+          <span :if={@filters.priority != :all} class="ml-1">
+            · {priority_label(@filters.priority)} priority
+          </span>
+        </h2>
+        <.link
+          patch={~p"/tasks/new"}
+          class="hidden sm:flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+        >
+          <.icon name="hero-plus" class="h-3.5 w-3.5" />
+          Add task
+        </.link>
+      </div>
+
+      <%!-- Empty state --%>
+      <div :if={@tasks == []} class="flex flex-col items-center justify-center py-24 text-center">
+        <div class="w-16 h-16 rounded-2xl bg-gray-800 flex items-center justify-center mb-4">
+          <.icon name="hero-check-circle" class="h-8 w-8 text-gray-600" />
+        </div>
+        <h3 class="text-gray-400 font-medium mb-1">No tasks found</h3>
+        <p class="text-gray-600 text-sm mb-4">
+          {if @filters != %{status: :all, priority: :all, project_id: :all, tag: nil, search: ""},
+            do: "Try adjusting your filters",
+            else: "Create your first task to get started"}
+        </p>
+        <.link
+          patch={~p"/tasks/new"}
+          class="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-sm font-medium transition-colors"
+        >
+          <.icon name="hero-plus" class="h-4 w-4" />
+          New Task
+        </.link>
+      </div>
+
+      <%!-- Task cards --%>
+      <div class="space-y-2">
+        <%= for task <- @tasks do %>
+          <div
+            id={"task-#{task.id}"}
+            class={[
+              "group relative rounded-xl border transition-all duration-150",
+              task.status == :done && "border-gray-800 bg-gray-900/50 opacity-60" ||
+              task.status == :blocked && "border-red-900/50 bg-red-950/20" ||
+              "border-gray-800 bg-gray-900 hover:border-gray-700"
+            ]}
+          >
+            <div class="flex items-start gap-3 p-4">
+              <%!-- Status toggle button --%>
+              <button
+                phx-click="toggle_status"
+                phx-value-id={task.id}
+                class="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all"
+                style={"border-color: #{status_ring_color(task.status)}; background-color: #{status_bg_color(task.status)}"}
+                title={"Click to advance status (currently: #{status_label(task.status)})"}
+              >
+                <.icon :if={task.status == :done} name="hero-check" class="h-3 w-3 text-green-400" />
+                <.icon :if={task.status == :in_progress} name="hero-arrow-right" class="h-2.5 w-2.5 text-blue-400" />
+                <.icon :if={task.status == :blocked} name="hero-x-mark" class="h-2.5 w-2.5 text-red-400" />
+              </button>
+
+              <%!-- Task content --%>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-start gap-2">
+                  <span
+                    class={[
+                      "flex-1 text-sm font-medium leading-snug",
+                      task.status == :done && "line-through text-gray-500" || "text-gray-100"
+                    ]}
+                  >
+                    {task.title}
+                  </span>
+
+                  <%!-- Priority dot --%>
+                  <span
+                    class={["mt-1.5 w-2 h-2 rounded-full flex-shrink-0", priority_dot(task.priority)]}
+                    title={"#{priority_label(task.priority)} priority"}
+                  />
+                </div>
+
+                <%!-- Description preview --%>
+                <p :if={task.description && task.description != ""} class="mt-0.5 text-xs text-gray-500 line-clamp-1">
+                  {task.description}
+                </p>
+
+                <%!-- Metadata row --%>
+                <div class="mt-2 flex items-center gap-3 flex-wrap">
+                  <%!-- Status badge --%>
+                  <span class={["rounded-md px-2 py-0.5 text-xs font-medium", status_class(task.status)]}>
+                    {status_label(task.status)}
+                  </span>
+
+                  <%!-- Project --%>
+                  <span :if={task.project} class="text-xs text-gray-500 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full" style={"background-color: #{task.project.color}"}></span>
+                    {task.project.name}
+                  </span>
+
+                  <%!-- Due date --%>
+                  <span
+                    :if={task.due_date}
+                    class={[
+                      "text-xs flex items-center gap-1",
+                      overdue?(task) && "text-red-400 font-medium" ||
+                      due_soon?(task) && "text-yellow-400" ||
+                      "text-gray-500"
+                    ]}
+                  >
+                    <.icon name="hero-calendar" class="h-3 w-3" />
+                    {Calendar.strftime(task.due_date, "%b %d")}
+                    <span :if={overdue?(task)} class="text-red-400">· overdue</span>
+                  </span>
+
+                  <%!-- Tags --%>
+                  <%= for tag <- task.tags do %>
+                    <button
+                      phx-click="filter_tag"
+                      phx-value-tag={tag}
+                      class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                    >
+                      #{tag}
+                    </button>
+                  <% end %>
+                </div>
+              </div>
+
+              <%!-- Actions (visible on hover) --%>
+              <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                <.link
+                  patch={~p"/tasks/#{task.id}/edit"}
+                  class="p-1.5 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+                  title="Edit (E)"
+                >
+                  <.icon name="hero-pencil" class="h-3.5 w-3.5" />
+                </.link>
+                <button
+                  phx-click="delete"
+                  phx-value-id={task.id}
+                  data-confirm={"Delete \"#{task.title}\"?"}
+                  class="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-900/20 transition-colors"
+                  title="Delete"
+                >
+                  <.icon name="hero-trash" class="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </main>
+</div>
+
+<%!-- Task modal --%>
+<.modal
+  :if={@live_action in [:new, :edit]}
+  id="task-modal"
+  show
+  on_cancel={JS.patch(~p"/")}
+>
+  <.live_component
+    module={DevtodoWeb.TaskLive.FormComponent}
+    id={@task.id || :new}
+    title={@page_title}
+    action={@live_action}
+    task={@task}
+    projects={@projects}
+    patch={~p"/"}
+  />
+</.modal>
